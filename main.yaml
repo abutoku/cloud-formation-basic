@@ -1,0 +1,104 @@
+AWSTemplateFormatVersion: 2010-09-09
+Resources:
+  # VPC
+  SampleVPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/16
+      EnableDnsHostnames: true
+      EnableDnsSupport: true
+      Tags:
+        - Key: Name
+          Value: SampleVPC
+
+  # IGW
+  SampleIGW:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Name
+          Value: SampleIGW
+
+  # IGW -> VPC アタッチ
+  SampleIGWAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref SampleVPC
+      InternetGatewayId: !Ref SampleIGW
+
+  # Subnet
+  SamplePublicSubnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: ap-northeast-1a
+      CidrBlock: 10.0.1.0/24
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: SamplePublicSubnet
+      VpcId: !Ref SampleVPC
+
+  # RouteTable
+  SamplePublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      Tags:
+        - Key: Name
+          Value: SamplePublicRouteTable
+      VpcId: !Ref SampleVPC
+  
+  # RouteTable -> IGW
+  SampleRouteToIGW:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref SampleIGW
+      RouteTableId: !Ref SamplePublicRouteTable
+  
+  # RouteTable -> Subnet
+  SampleRouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref SamplePublicRouteTable
+      SubnetId: !Ref SamplePublicSubnet
+
+  # SecurityGroup
+  SampleSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Security Group for EC2
+      GroupName: SampleSecurityGroup
+      VpcId: !Ref SampleVPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+      Tags:
+        - Key: Name
+          Value: SampleSecurityGroup
+    
+  # EC2 instance
+  SampleEC2Instance:
+    Type: AWS::EC2::Instance
+    Properties:
+      AvailabilityZone: ap-northeast-1a
+      ImageId: ami-088da9557aae42f39
+      InstanceType: t3.micro
+      SecurityGroupIds:
+        - !Ref SampleSecurityGroup
+      SubnetId: !Ref SamplePublicSubnet
+      Tags:
+        - Key: Name
+          Value: SampleEC2Instance
+      UserData:
+        Fn::Base64: |
+          #!/bin/bash
+          apt update -y
+          apt install -y nginx
+
+Outputs:
+  # EC2 instance ip address output
+  EC2InstancePublicIP:
+    Description: "The Public IP address of the EC2 instance"
+    Value: !GetAtt SampleEC2Instance.PublicIp
